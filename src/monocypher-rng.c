@@ -67,8 +67,7 @@ static const uint8_t zero[8] = {0};
 void crypto_rng_init(crypto_rng_ctx *ctx, uint8_t random_seed[32])
 {
     copy(ctx->pool, random_seed, 32);
-    crypto_chacha20(ctx->pool, 0, 512, ctx->pool, zero);
-    ctx->idx = 32;
+    ctx->idx = 512;
     crypto_wipe(random_seed, 32);
 }
 
