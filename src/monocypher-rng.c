@@ -85,6 +85,9 @@ void crypto_rng_read(crypto_rng_ctx *ctx, uint8_t *buf, size_t size)
     }
     copy(buf, ctx->pool + ctx->idx, size);
     ctx->idx += size;
+
+    // Wipe used bytes ASAP (even if they'll be erased later)
+    crypto_wipe(ctx->pool + 32, ctx->idx - 32);
 }
 
 void crypto_rng_fork(crypto_rng_ctx *ctx, crypto_rng_ctx *child_ctx)
