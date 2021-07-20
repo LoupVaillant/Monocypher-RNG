@@ -11,7 +11,7 @@
 //
 // ------------------------------------------------------------------------
 //
-// Copyright (c) 2019, Loup Vaillant
+// Copyright (c) 2019-2021, Loup Vaillant
 // All rights reserved.
 //
 //
@@ -41,7 +41,7 @@
 //
 // ------------------------------------------------------------------------
 //
-// Written in 2017-2019 by Loup Vaillant
+// Written in 2019-2021 by Loup Vaillant
 //
 // To the extent possible under law, the author(s) have dedicated all copyright
 // and related neighboring rights to this software to the public domain
@@ -54,62 +54,42 @@
 #include "monocypher-rng.h"
 #include "monocypher.h"
 
-#define FOR(i, start, end) for (size_t i = (start); i < (end); i++)
-typedef uint8_t u8;
-
 // avoid memcpy dependency (the compiler will likely use memcpy anyway)
-static void copy(u8 *out, u8 *in, size_t size)
+static void copy(uint8_t *out, uint8_t *in, size_t size)
 {
-    FOR (i, 0, size) {
+    for (size_t i = 0; i < size; i++) {
         out[i] = in[i];
     }
 }
 
-static void rng_refill(crypto_rng_ctx *ctx)
-{
-    u8 zero[8] = {0};
-    crypto_chacha20(ctx->pool, 0, 512, ctx->pool, zero);
-    ctx->idx = 32;
-}
+static const uint8_t zero[8] = {0};
 
-void crypto_rng_init(crypto_rng_ctx *ctx, u8 random_seed[32])
+void crypto_rng_init(crypto_rng_ctx *ctx, uint8_t random_seed[32])
 {
     copy(ctx->pool, random_seed, 32);
-    rng_refill(ctx);
+    crypto_chacha20(ctx->pool, 0, 512, ctx->pool, zero);
+    ctx->idx = 32;
     crypto_wipe(random_seed, 32);
 }
 
-void crypto_rng_read(crypto_rng_ctx *ctx, u8 *buf, size_t size)
+void crypto_rng_read(crypto_rng_ctx *ctx, uint8_t *buf, size_t size)
 {
-    size_t remainder = 512 - ctx->idx;
-    size_t size1     = size > remainder ? remainder : size;
-
-    // Use any remaining random bytes
-    copy(buf, ctx->pool + ctx->idx, size1);
-    ctx->idx += size1;
-    buf      += size1;
-    size     -= size1;
-
-    // Fill the buffer block by block
-    static const size_t pool_size = 512 - 32; // keep 32 bytes to rekey
+    size_t pool_size = 512 - ctx->idx;
     while (size > pool_size) {
-        rng_refill(ctx);
-        copy(buf, ctx->pool, pool_size);
-        size -= pool_size;
-        buf  += pool_size;
+        copy(buf, ctx->pool + ctx->idx, pool_size);
+        crypto_chacha20(ctx->pool, 0, 512, ctx->pool, zero);
+        size     -= pool_size;
+        buf      += pool_size;
+        ctx->idx  = 32;
+        pool_size = 512 - 32;
     }
-
-    // Fill the last bytes, if any
-    if (size > 0) {
-        rng_refill(ctx);
-        copy(buf, ctx->pool + ctx->idx, size);
-        ctx->idx += size;
-    }
+    copy(buf, ctx->pool + ctx->idx, size);
+    ctx->idx += size;
 }
 
 void crypto_rng_fork(crypto_rng_ctx *ctx, crypto_rng_ctx *child_ctx)
 {
-    u8 child_seed[32]; // wiped by crypto_rng_init;
+    uint8_t child_seed[32]; // wiped by crypto_rng_init;
     crypto_rng_read(ctx, child_seed, 32);
     crypto_rng_init(child_ctx, child_seed);
 }
